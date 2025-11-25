@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Heart, Shield, MessageCircle, Clock, CheckCircle, ChevronRight, ChevronLeft, Sparkles, Users, BookOpen, Archive, Home, Menu, X, Play, Pause, Plus, Search, Calendar, Lock, Eye, TrendingUp, Award, AlertCircle, RotateCcw, Send, Star, Zap, Target, Lightbulb, Volume2, Square } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 
 // ============================================
 // FRAMEWORK DATA
@@ -61,6 +62,86 @@ export default function ClearCarePlatform() {
   const [conversations, setConversations] = useState([])
   const [current, setCurrent] = useState(null)
 
+  // Load conversations from Supabase on mount
+  useEffect(() => {
+    async function loadConversations() {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (data) {
+        // Transform database format to app format
+        const formatted = data.map(c => ({
+          id: c.id,
+          title: c.title,
+          personName: c.person_name,
+          type: c.conversation_type,
+          relationship: c.relationship_context,
+          warmth: c.warmth_level,
+          structure: c.structure_level,
+          status: c.status,
+          date: new Date(c.created_at).toLocaleDateString(),
+          care: { C: c.care_c, A: c.care_a, R: c.care_r, E: c.care_e },
+          clear: { C: c.clear_c, L: c.clear_l, E: c.clear_e, A: c.clear_a, R: c.clear_r },
+          starter: c.conversation_starter,
+          notes: c.notes || [],
+          duration: c.duration_seconds
+        }))
+        setConversations(formatted)
+      }
+    }
+    loadConversations()
+  }, [])
+
+  // Save conversation to Supabase
+  const saveConversation = async (conv) => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({
+        title: conv.title,
+        person_name: conv.personName,
+        conversation_type: conv.type,
+        relationship_context: conv.relationship,
+        warmth_level: conv.warmth,
+        structure_level: conv.structure,
+        care_c: conv.care?.C,
+        care_a: conv.care?.A,
+        care_r: conv.care?.R,
+        care_e: conv.care?.E,
+        clear_c: conv.clear?.C,
+        clear_l: conv.clear?.L,
+        clear_e: conv.clear?.E,
+        clear_a: conv.clear?.A,
+        clear_r: conv.clear?.R,
+        conversation_starter: conv.starter,
+        additional_notes: conv.notes,
+        status: conv.status || 'prepared'
+      })
+      .select()
+      .single()
+    
+    if (data) {
+      return { ...conv, id: data.id }
+    }
+    return conv
+  }
+
+  // Update conversation in Supabase
+  const updateConversation = async (conv) => {
+    if (!conv.id) return conv
+    await supabase
+      .from('conversations')
+      .update({
+        status: conv.status,
+        duration_seconds: conv.duration,
+        notes: conv.notes,
+        reflection: conv.reflection,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', conv.id)
+    return conv
+  }
+
   const nav = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'prep', label: 'New', icon: Plus },
@@ -73,9 +154,21 @@ export default function ClearCarePlatform() {
   const renderView = () => {
     switch (view) {
       case 'home': return <HomeView onNav={setView} conversations={conversations} />
-      case 'prep': return <PrepWizard onComplete={(c) => { setConversations([...conversations, c]); setCurrent(c); setView('live') }} />
-      case 'live': return <LiveMode conv={current} onComplete={(c) => { setCurrent(c); setView('reflect') }} />
-      case 'reflect': return <Reflection conv={current} onComplete={() => setView('archive')} />
+      case 'prep': return <PrepWizard onComplete={async (c) => { 
+        const saved = await saveConversation(c)
+        setConversations([saved, ...conversations])
+        setCurrent(saved)
+        setView('live') 
+      }} />
+      case 'live': return <LiveMode conv={current} onComplete={async (c) => { 
+        const updated = await updateConversation(c)
+        setCurrent(updated)
+        setView('reflect') 
+      }} />
+      case 'reflect': return <Reflection conv={current} onComplete={async () => {
+        if (current) await updateConversation({ ...current, status: 'completed' })
+        setView('archive')
+      }} />
       case 'archive': return <ArchiveView conversations={conversations} onSelect={(c) => { setCurrent(c); setView('reflect') }} />
       case 'learn': return <LearnModule />
       case 'team': return <TeamView />
