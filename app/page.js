@@ -91,11 +91,12 @@ export default function ClearCarePlatform() {
             structure: c.structure_level,
             status: c.status,
             date: new Date(c.created_at).toLocaleDateString(),
-            care: { C: c.care_c, A: c.care_a, R: c.care_r, E: c.care_e },
-            clear: { C: c.clear_c, L: c.clear_l, E: c.clear_e, A: c.clear_a, R: c.clear_r },
+            care: c.care_responses || { C: '', A: '', R: '', E: '' },
+            clear: c.clear_responses || { C: '', L: '', E: '', A: '', R: '' },
             starter: c.conversation_starter,
             notes: c.notes || [],
-            duration: c.duration_seconds
+            duration: c.duration_seconds,
+            reflection: c.reflection || {}
           }))
           setConversations(formatted)
           console.log('Loaded', formatted.length, 'conversations')
@@ -126,17 +127,10 @@ export default function ClearCarePlatform() {
           relationship_context: conv.relationship,
           warmth_level: conv.warmth,
           structure_level: conv.structure,
-          care_c: conv.care?.C,
-          care_a: conv.care?.A,
-          care_r: conv.care?.R,
-          care_e: conv.care?.E,
-          clear_c: conv.clear?.C,
-          clear_l: conv.clear?.L,
-          clear_e: conv.clear?.E,
-          clear_a: conv.clear?.A,
-          clear_r: conv.clear?.R,
+          care_responses: conv.care || { C: '', A: '', R: '', E: '' },
+          clear_responses: conv.clear || { C: '', L: '', E: '', A: '', R: '' },
           conversation_starter: conv.starter,
-          additional_notes: conv.notes,
+          notes: conv.notes || [],
           status: conv.status || 'prepared'
         })
         .select()
