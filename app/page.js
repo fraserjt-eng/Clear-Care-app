@@ -65,29 +65,43 @@ export default function ClearCarePlatform() {
   // Load conversations from Supabase on mount
   useEffect(() => {
     async function loadConversations() {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (data) {
-        // Transform database format to app format
-        const formatted = data.map(c => ({
-          id: c.id,
-          title: c.title,
-          personName: c.person_name,
-          type: c.conversation_type,
-          relationship: c.relationship_context,
-          warmth: c.warmth_level,
-          structure: c.structure_level,
-          status: c.status,
-          date: new Date(c.created_at).toLocaleDateString(),
-          care: { C: c.care_c, A: c.care_a, R: c.care_r, E: c.care_e },
-          clear: { C: c.clear_c, L: c.clear_l, E: c.clear_e, A: c.clear_a, R: c.clear_r },
-          starter: c.conversation_starter,
-          notes: c.notes || [],
-          duration: c.duration_seconds
-        }))
-        setConversations(formatted)
+      if (!supabase) {
+        console.log('Supabase not configured')
+        return
+      }
+      try {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('*')
+          .order('created_at', { ascending: false })
+        
+        if (error) {
+          console.error('Load error:', error)
+          return
+        }
+        
+        if (data) {
+          const formatted = data.map(c => ({
+            id: c.id,
+            title: c.title,
+            personName: c.person_name,
+            type: c.conversation_type,
+            relationship: c.relationship_context,
+            warmth: c.warmth_level,
+            structure: c.structure_level,
+            status: c.status,
+            date: new Date(c.created_at).toLocaleDateString(),
+            care: { C: c.care_c, A: c.care_a, R: c.care_r, E: c.care_e },
+            clear: { C: c.clear_c, L: c.clear_l, E: c.clear_e, A: c.clear_a, R: c.clear_r },
+            starter: c.conversation_starter,
+            notes: c.notes || [],
+            duration: c.duration_seconds
+          }))
+          setConversations(formatted)
+          console.log('Loaded', formatted.length, 'conversations')
+        }
+      } catch (err) {
+        console.error('Load exception:', err)
       }
     }
     loadConversations()
@@ -95,50 +109,72 @@ export default function ClearCarePlatform() {
 
   // Save conversation to Supabase
   const saveConversation = async (conv) => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({
-        title: conv.title,
-        person_name: conv.personName,
-        conversation_type: conv.type,
-        relationship_context: conv.relationship,
-        warmth_level: conv.warmth,
-        structure_level: conv.structure,
-        care_c: conv.care?.C,
-        care_a: conv.care?.A,
-        care_r: conv.care?.R,
-        care_e: conv.care?.E,
-        clear_c: conv.clear?.C,
-        clear_l: conv.clear?.L,
-        clear_e: conv.clear?.E,
-        clear_a: conv.clear?.A,
-        clear_r: conv.clear?.R,
-        conversation_starter: conv.starter,
-        additional_notes: conv.notes,
-        status: conv.status || 'prepared'
-      })
-      .select()
-      .single()
+    console.log('Saving conversation:', conv.title)
     
-    if (data) {
-      return { ...conv, id: data.id }
+    if (!supabase) {
+      console.error('Supabase not configured - saving locally only')
+      return { ...conv, id: Date.now().toString() }
     }
-    return conv
+    
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .insert({
+          title: conv.title,
+          person_name: conv.personName,
+          conversation_type: conv.type,
+          relationship_context: conv.relationship,
+          warmth_level: conv.warmth,
+          structure_level: conv.structure,
+          care_c: conv.care?.C,
+          care_a: conv.care?.A,
+          care_r: conv.care?.R,
+          care_e: conv.care?.E,
+          clear_c: conv.clear?.C,
+          clear_l: conv.clear?.L,
+          clear_e: conv.clear?.E,
+          clear_a: conv.clear?.A,
+          clear_r: conv.clear?.R,
+          conversation_starter: conv.starter,
+          additional_notes: conv.notes,
+          status: conv.status || 'prepared'
+        })
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Save error:', error)
+        return { ...conv, id: Date.now().toString() }
+      }
+      
+      console.log('Saved successfully:', data.id)
+      return { ...conv, id: data.id }
+    } catch (err) {
+      console.error('Save exception:', err)
+      return { ...conv, id: Date.now().toString() }
+    }
   }
 
   // Update conversation in Supabase
   const updateConversation = async (conv) => {
-    if (!conv.id) return conv
-    await supabase
-      .from('conversations')
-      .update({
-        status: conv.status,
-        duration_seconds: conv.duration,
-        notes: conv.notes,
-        reflection: conv.reflection,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', conv.id)
+    if (!conv.id || !supabase) return conv
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({
+          status: conv.status,
+          duration_seconds: conv.duration,
+          notes: conv.notes,
+          reflection: conv.reflection,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', conv.id)
+      
+      if (error) console.error('Update error:', error)
+    } catch (err) {
+      console.error('Update exception:', err)
+    }
     return conv
   }
 
